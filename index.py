@@ -1,7 +1,7 @@
 from PyPDF2 import PdfReader
 import re
-from FlightLeg import FlightLeg
-import Pairing
+import FlightLeg
+from Pairing import Pairing
 
 path = '202404-YYZ-PairingFile.PDF.pdf'
     
@@ -59,8 +59,11 @@ pre_parsed = pre_parse_pdf()
 #print(pre_parsed[0][0])
 
 def convert():
+  pairings_parsed = []
   for i in range(0, 1):#ln(pre_parsed)):
       flights_done = False
+      index = 0
+      cal_index = 0
       for j in range(0, len(pre_parsed[i])):
         line = pre_parsed[i][j]
         if j==0:
@@ -68,7 +71,7 @@ def convert():
           date = re.findall(r"\d\d[A-Z]{3}\s-\s\d\d[A-Z]{3}", line)
           pairing_start_date = date[0][0:5]
           pairing_end_date = date[0][8:13]
-          print(pairing_number, pairing_start_date, pairing_end_date)
+          #print(pairing_number, pairing_start_date, pairing_end_date)
         
         elif j==1:
           number_pr_req = int(re.findall(r"P\s\d{2}", line)[0][-2:])
@@ -77,20 +80,62 @@ def convert():
           number_gy_req = int(re.findall(r"GY\d{2}", line)[0][-2:])
           number_bl_req = int(re.findall(r"BL\d{2}", line)[0][-2:])
           # TODO detect all languages, each position if required for the pairing
-          print(number_pr_req, number_fa_req, number_gj_req, number_gy_req, number_bl_req)
+          #print(number_pr_req, number_fa_req, number_gj_req, number_gy_req, number_bl_req)
+        
         elif (re.search(r'-{17,31}',line)):
           #detects -----------------, indicating all flights in pairing parsed
           flights_done = True
+          index = j + 1
+        
         elif (j > 1 and not flights_done):
           #these lines represt the flight legs in the pairing
-          flight_operates = line[0:7]
-          aircraft_type = line[9:12]
-          leg_number = line[17:20]
-          leg_origin = line[22:25]
-          leg_time = line[27:30]
-          leg_destination = line[32:35]
-          leg_arrival_time = line[36:40]
-          leg_total_duty = line[43:46]
-          print(flight_operates, aircraft_type, leg_number, leg_origin, leg_time, leg_destination, leg_arrival_time, leg_total_duty)         
+          #flight_operates = line[0:7]
+          flight_operates = re.findall(r'\d{1,7}\s', line)[0]
+          #remove flight_operates data from string to ease finding rest of information
+          line = line[len(flight_operates):]
+          #collect all 3-4 digit numbers
+          data_digits = re.findall(r'\d{3,4}', line)
+          #collect all 3 character strings
+          data_text = re.findall(r'[A-Z]{3}', line)
+          aircraft_type = data_digits[0]
+          leg_number = data_digits[1]
+          leg_origin = data_text[0]
+          leg_start_time = data_digits[2]
+          leg_destination = data_text[1]
+          leg_arrival_time = data_digits[3]
+          leg_total_duty = data_digits[4]
+          #print(flight_operates, aircraft_type, leg_number, leg_origin, leg_start_time, leg_destination, leg_arrival_time, leg_total_duty)         
         
-convert()
+        elif j == index:
+          block_credit = re.findall(r'\d{3,4}', line)[0]
+          tafb = re.findall(r'\d{3,4}', line)[1]
+          allowance = re.findall(r'\d{1,3}\.\d{2}', line)[0]
+          #print(block_credit, tafb, allowance)
+        
+        elif j == index + 1:
+          #this line could be used for block and tafb error checking
+          pass
+        
+        elif (re.search(r'DiLuMaMeJeVeSa', line)):
+          #calender of dates starts on next line
+          #cal_index = 1
+          pass
+        
+        #elif cal_index == 1:
+          #cal_index += 1
+          #pass
+        
+        elif j == len(pre_parsed[i]) - 1:
+          new_pairing = Pairing(
+            pairing_number,
+            pairing_start_date,
+            pairing_end_date,
+          )
+          pairings_parsed.append(new_pairing)
+        else:
+          #print('error parsing at line ', j)
+          pass
+  return pairings_parsed
+
+parsed = convert()
+print(parsed[0].pairing_number)
